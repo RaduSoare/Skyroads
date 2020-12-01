@@ -21,29 +21,26 @@ Tema2::~Tema2()
 void Tema2::Init()
 {
 
-	xPlayer = xPlayerInitial;
-	yPlayer = yPlayerInitial;
-	zPlayer = zPlayerInitial;
+	xCamera = xCameraInitial;
+	yCamera = yCameraInitial;
+	zCamera = zCameraInitial;
 
 	camera = new Camera();
-	camera->Set(glm::vec3(xPlayer, yPlayer, zPlayer), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
+	camera->Set(glm::vec3(xCamera, yCamera, zCamera), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
+
+	xPlayerInitial = camera->GetTargetPosition()[0];
+	yPlayerInitial = camera->GetTargetPosition()[1];
+	zPlayerInitial = camera->GetTargetPosition()[2];
 
 	drawPlatform('o');
 	drawPlatform('g');
 	drawPlatform('r');
 	drawPlatform('y');
 	drawPlatform('p');
+	drawPlatform('b');
 
 	centerPlatforms = allocatePlatforms();
 	
-
-	
-
-/*	{
-		Mesh* mesh = new Mesh("box");
-		mesh->LoadMesh(RESOURCE_PATH::MODELS + "Primitives", "box.obj");
-		meshes[mesh->GetMeshID()] = mesh;
-	} */
 
 	{
 		Mesh* mesh = new Mesh("sphere");
@@ -56,28 +53,37 @@ void Tema2::Init()
 }
 
 const char* Tema2::generateRandomColor() {
-	int colorIndex = getRandom(0, 3);
-	switch (colorIndex) {
-	case 0:
-		return str_rPlatform;
-	case 1:
+	int colorProbability = getRandom(0, 100);
+
+	if (colorProbability < 65) {
+		return str_bPlatform;
+	}
+	else if (colorProbability >= 65 && colorProbability < 75) {
 		return str_yPlatform;
-	case 2:
+	}
+	else if (colorProbability >= 75 && colorProbability < 85) {
 		return str_oPlatform;
-	case 3:
+	}
+	else if (colorProbability >= 85 && colorProbability < 95) {
 		return str_gPlatform;
 	}
+	else if (colorProbability >= 95 && colorProbability <= 100) {
+		return str_rPlatform;
+	}
+	
+	
 }
 
 Platform* Tema2::allocatePlatforms() {
 	Platform* centerPlatforms = new Platform[platformsNumber];
-	centerPlatforms[0] = Platform(xPlayerInitial + getRandom(-2, 2), zPlayerInitial, getRandom(minPlatformLength, maxPlatformLength), generateRandomColor());
 	
-	float lastX = xPlayerInitial, lastZ = zPlayerInitial;
+	centerPlatforms[0] = Platform(xCameraInitial - platformWidth / 2, zPlayerInitial - maxPlatformLength * 2, maxPlatformLength * 2, generateRandomColor());
+	
+	float lastX = xCameraInitial, lastZ = zPlayerInitial - maxPlatformLength * 2;
 
 	for (int i = 1; i < platformsNumber	; i++) {
 		int currentLength = getRandom(minPlatformLength, maxPlatformLength);
-		centerPlatforms[i] = Platform(xPlayerInitial + getRandom(-2, 2), lastZ - spaceBetweenPlatform - currentLength, currentLength, generateRandomColor());
+		centerPlatforms[i] = Platform(xCameraInitial + getRandom(-2, 2), lastZ - spaceBetweenPlatform - currentLength, currentLength, generateRandomColor());
 		lastZ = lastZ - spaceBetweenPlatform - centerPlatforms[i].length;
 
 	}
@@ -100,26 +106,55 @@ void Tema2::FrameStart()
 void Tema2::Update(float deltaTimeSeconds)
 {
 	{
-		
+		int platformTouchedPerFrame = 0;
 		for (int i = 0; i < platformsNumber; i++) {
-			checkPlayerOnPlatform(&centerPlatforms[i]);
-			//cout << i << " : " << centerPlatforms[i].xCoord << " " << centerPlatforms[i].zCoord << " " << centerPlatforms[i].length << endl;
-			//cout << camera->GetTargetPosition()[2] << " " << zPlayer << endl;
 			RenderPlatform(&centerPlatforms[i], deltaTimeSeconds);
+			if (checkPlayerOnPlatform(&centerPlatforms[i]) == true) {
+				platformTouchedPerFrame++;
+			}
 			
 		} 
+		if(platformTouchedPerFrame < 1) {
+			//cout << "picat" << endl;
+			endGame = true;
+		}
+
+		
 		
 	}
 
 	
 	if (renderCameraTarget)
 	{
-		glm::mat4 modelMatrix = glm::mat4(1);
-		modelMatrix *= Transform3D::Translate(camera->GetTargetPosition()[0], 
-			camera->GetTargetPosition()[1],
-			camera->GetTargetPosition()[2]);
-		//cout << zPlayer << " " << camera->GetTargetPosition()[2] << endl;
-		modelMatrix *= Transform3D::Scale(0.1f, 0.1f, 0.1f);
+		xPlayer = camera->GetTargetPosition()[0];
+		yPlayer = camera->GetTargetPosition()[1];
+		zPlayer = camera->GetTargetPosition()[2];
+
+		if (endGame == false) {
+			modelMatrix = glm::mat4(1);
+			modelMatrix *= Transform3D::Translate(xPlayer, yPlayer, zPlayer);
+			
+			// animatie rotire
+			angularSpeedPlayer += deltaTimeSeconds * 2;
+			modelMatrix *= Transform3D::RotateOX(-angularSpeedPlayer);
+
+			modelMatrix *= Transform3D::Scale(0.5f, 0.5f, 0.5f);
+			
+		}
+		// Animatie terminare joc
+		else {
+			modelMatrix = Transform3D::Translate(xPlayer, yPlayer, zPlayer);
+			endGameGravity += deltaTimeSeconds * 5;
+			modelMatrix *= Transform3D::Translate(0, -endGameGravity, 0);
+			modelMatrix *= Transform3D::Scale(0.5f, 0.5f, 0.5f);
+			cout << endGameGravity << endl;
+			if (endGameGravity >= 3.f) {
+				exit(1);
+			}
+		}
+		
+		
+		
 
 		RenderMesh(meshes["sphere"], shaders["VertexNormal"], modelMatrix);
 	}
@@ -131,17 +166,26 @@ void Tema2::Update(float deltaTimeSeconds)
 void Tema2::RenderPlatform(Platform* platform, float deltaTimeSeconds) {
 	
 
-	modelMatrix = Transform3D::Translate(platform->xCoord, 0, platform->zCoord);
 	
-	//cout << platform->zCoord + platform->distance << endl;
-	platform->distance += deltaTimeSeconds * platformSpeed;
-	modelMatrix *= Transform3D::Translate(0, 0, platform->distance);
-	modelMatrix *= Transform3D::Scale(1, 1, platform->length);
+	
+	if (endGame == false) {
+		modelMatrix = Transform3D::Translate(platform->xCoord, 0.75f, platform->zCoord);
+		platform->distance += deltaTimeSeconds * platformSpeed;
+		modelMatrix *= Transform3D::Translate(0, 0, platform->distance);
+		modelMatrix *= Transform3D::Scale(1, 1, platform->length);
+	}
+	else {
+		modelMatrix = Transform3D::Translate(platform->xCoord, 0.75f, platform->zCoord);
+		modelMatrix *= Transform3D::Translate(0, 0, platform->distance);
+		modelMatrix *= Transform3D::Scale(1, 1, platform->length);
+	}
+	
+	
 
 	/*
-	 Verificare daca platforma a ajuns in spatele jucatorului
+	 Verificare daca platforma a ajuns in spatele camerei
 	*/
-	if (platform->isInGame == true && platform->zCoord + platform->distance >=zPlayer + platform->length) {
+	if (platform->isInGame == true && platform->zCoord + platform->distance >=zCamera + platform->length) {
 		// third person case
 		
 		platform->isInGame = false;
@@ -153,7 +197,7 @@ void Tema2::RenderPlatform(Platform* platform, float deltaTimeSeconds) {
 		}
 		
 		platform->length = getRandom(minPlatformLength, maxPlatformLength);
-		platform->xCoord = xPlayerInitial + getRandom(-3, 3);
+		platform->xCoord = xCameraInitial + getRandom(-2, 2);
 		platform->zCoord = lastPlatform - platform->length - spaceBetweenPlatform;
 		platform->color = generateRandomColor();
 		platform->isInGame = true;
@@ -167,14 +211,29 @@ void Tema2::RenderPlatform(Platform* platform, float deltaTimeSeconds) {
 }
 
 bool Tema2::checkPlayerOnPlatform(Platform* platform) {
-	if (renderCameraTarget == false && (xPlayer >= platform->xCoord && xPlayer <= platform->xCoord + platformWidth
-		&& zPlayer >= platform->zCoord + platform->distance && zPlayer <= platform->zCoord + platform->distance + platform->length)
-		|| (renderCameraTarget == true && camera->GetTargetPosition()[0] >= platform->xCoord && camera->GetTargetPosition()[0] <= platform->xCoord + platformWidth
-			&& camera->GetTargetPosition()[2] >= platform->zCoord + platform->distance && camera->GetTargetPosition()[2] <= platform->zCoord + platform->distance + platform->length)) {
+	
+	
+	// caz first person
+	/*renderCameraTarget == false && (xCamera >= platform->xCoord && xCamera <= platform->xCoord + platformWidth
+		&& zCamera >= platform->zCoord + platform->distance && zCamera <= platform->zCoord + platform->distance + platform->length
+		&& yCamera <= yCameraInitial)
+		// caz third person
+		||*/
+	if ((renderCameraTarget == true 
+		&& camera->GetTargetPosition()[0] >= platform->xCoord && camera->GetTargetPosition()[0] <= platform->xCoord + platformWidth
+		&& camera->GetTargetPosition()[2] >= platform->zCoord + platform->distance && camera->GetTargetPosition()[2] <= platform->zCoord + platform->distance + platform->length
+		&& yPlayer <= yPlayerInitial) ) {
 		platform->color = str_pPlatform;
 		return true;
+		
 	}
-	return false;
+	if (goingUp == false && goingDown == false) {
+		return false;
+	}
+	return true;
+	
+	
+	
 }
 
 
@@ -198,8 +257,8 @@ void Tema2::RenderMesh(Mesh * mesh, Shader * shader, const glm::mat4 & modelMatr
 	mesh->Render();
 }
 
-bool goingUp = false, goingDown = false;
-int airTime = 0;
+
+float airTime = 0;
 void Tema2::OnInputUpdate(float deltaTime, int mods)
 {
 	
@@ -208,7 +267,7 @@ void Tema2::OnInputUpdate(float deltaTime, int mods)
 	if (window->KeyHold(GLFW_KEY_W)) {
 		
 		camera->MoveForward(deltaTime * cameraSpeed);
-		zPlayer -= deltaTime * cameraSpeed;
+		zCamera -= deltaTime * cameraSpeed;
 	}
 	
 	
@@ -216,36 +275,36 @@ void Tema2::OnInputUpdate(float deltaTime, int mods)
 	if (window->KeyHold(GLFW_KEY_A)) {
 		// TODO : translate the camera to the left
 		camera->TranslateRight(-deltaTime * cameraSpeed);
-		xPlayer -= deltaTime * cameraSpeed;
+		xCamera -= deltaTime * cameraSpeed;
 	}
 
 	if (window->KeyHold(GLFW_KEY_S)) {
 		// TODO : translate the camera backwards
 		camera->MoveForward(-deltaTime * cameraSpeed);
-		zPlayer += deltaTime * cameraSpeed;
+		zCamera += deltaTime * cameraSpeed;
 	}
 
 	if (window->KeyHold(GLFW_KEY_D)) {
 		// TODO : translate the camera to the right
 		camera->TranslateRight(deltaTime * cameraSpeed);
-		xPlayer += deltaTime * cameraSpeed;
+		xCamera += deltaTime * cameraSpeed;
 	}
 
 	if (window->KeyHold(GLFW_KEY_Q)) {
 		// TODO : translate the camera down
 		camera->TranslateUpword(-deltaTime * cameraSpeed);
-		yPlayer -= deltaTime * cameraSpeed;
+		yCamera -= deltaTime * cameraSpeed;
 	}
 
 	if (window->KeyHold(GLFW_KEY_E)) {
 		// TODO : translate the camera up
 		camera->TranslateUpword(deltaTime * cameraSpeed);
-		yPlayer += deltaTime * cameraSpeed;
+		yCamera += deltaTime * cameraSpeed;
 	}
 
-	if (goingUp == true) {
-		if (yPlayer < 100) {
-			yPlayer += deltaTime * jumpSpeed * 100;
+	if (goingUp) {
+		airTime += deltaTime * jumpSpeed;
+		if (airTime <= 1.f) {
 			camera->TranslateUpword(deltaTime * jumpSpeed);
 		}
 		else {
@@ -253,9 +312,10 @@ void Tema2::OnInputUpdate(float deltaTime, int mods)
 			goingDown = true;
 		}
 	}
-	else if (goingDown == true) {
-		if (yPlayer > 0) {
-			yPlayer -= deltaTime * jumpSpeed * 100;
+	else if (goingDown) {
+		
+		if ((renderCameraTarget == true &&  yPlayer > yPlayerInitial) 
+			|| (renderCameraTarget == false && yCamera > yCameraInitial)) {
 			camera->TranslateUpword(- deltaTime * jumpSpeed);
 		}
 		else {
@@ -264,7 +324,6 @@ void Tema2::OnInputUpdate(float deltaTime, int mods)
 			airTime = 0;
 		}
 	}
-		//cout << airTime << endl;
 	
 
 }
@@ -355,6 +414,10 @@ void Tema2::drawPlatform(char platformType) {
 	case 'p':
 		color = purpleColor;
 		meshName = str_pPlatform;
+		break;
+	case 'b':
+		color = blueColor;
+		meshName = str_bPlatform;
 		break;
 	default:
 		break;

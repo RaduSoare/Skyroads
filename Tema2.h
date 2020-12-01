@@ -51,6 +51,8 @@ protected:
 	glm::mat4 projectionMatrix;
 	bool renderCameraTarget = true;
 	glm::mat4 modelMatrix;
+	bool endGame = false;
+	float endGameGravity = 0;
 
 	float cameraSpeed = 2.0f;
 	float jumpSpeed = 1.5f;
@@ -60,16 +62,25 @@ protected:
 	glm::vec3 yellowColor = glm::vec3(1, 1, 0);
 	glm::vec3 greenColor = glm::vec3(0, 1, 0);
 	glm::vec3 purpleColor = glm::vec3(0.5f, 0, 0.5f);
+	glm::vec3 blueColor = glm::vec3(0, 0, 1.f);
 
 	const char* str_rPlatform = "redPlatform";
 	const char* str_yPlatform = "yellowPlatform";
 	const char* str_oPlatform = "orangePlatform";
 	const char* str_gPlatform = "greenPlatform";
 	const char* str_pPlatform = "purplePlatform";
+	const char* str_bPlatform = "bluePlatform";
 
-	float xPlayerInitial = 0, yPlayerInitial = 2, zPlayerInitial = 3.5f;
-	float xPlayer = 0, yPlayer = 0, zPlayer = 0;
-	float distanceToCamera = 1.92305f;
+	float xCameraInitial = 0, yCameraInitial = 2, zCameraInitial = 3.5f;
+	float xCamera = 0, yCamera = 0, zCamera = 0;
+
+	float xPlayerInitial, yPlayerInitial, zPlayerInitial;
+	float xPlayer, yPlayer, zPlayer;
+	
+
+	float angularSpeedPlayer = 0;
+
+	bool goingUp = false, goingDown = false;
 
 	int platformsNumber = 10;
 	float platformSpeed = 4.f;

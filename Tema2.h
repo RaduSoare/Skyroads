@@ -4,6 +4,7 @@
 
 #include "LabCamera.h"
 #include "Transform3D.h"
+#include "Transform2D.h"
 #include "Platform.h"
 
 
@@ -37,10 +38,14 @@ private:
 
 
 	void drawPlatform(char platformType);
+	void Tema2::drawFuelBar(glm::vec3 color, const char* fuelbarComponent);
+
 	int getRandom(int min, int max);
 	const char* generateRandomColor();
-	Platform* allocatePlatforms();
-	void RenderPlatform(Platform* platform, float deltaTimeSeconds);
+	Platform* allocatePlatform(int platformSide);
+	Platform** allocatePlatforms();
+	void RenderPlatform(Platform* platform, float deltaTimeSeconds, Platform* platformRow);
+	void RenderFuelbar(float deltaTimeSeconds);
 	bool checkPlayerOnPlatform(Platform* platform);
 
 	
@@ -63,6 +68,7 @@ protected:
 	glm::vec3 greenColor = glm::vec3(0, 1, 0);
 	glm::vec3 purpleColor = glm::vec3(0.5f, 0, 0.5f);
 	glm::vec3 blueColor = glm::vec3(0, 0, 1.f);
+	glm::vec3 whiteColor = glm::vec3(1.f, 1.f, 1.f);
 
 	const char* str_rPlatform = "redPlatform";
 	const char* str_yPlatform = "yellowPlatform";
@@ -70,6 +76,9 @@ protected:
 	const char* str_gPlatform = "greenPlatform";
 	const char* str_pPlatform = "purplePlatform";
 	const char* str_bPlatform = "bluePlatform";
+
+	const char* str_backgroundFuelbar = "backgroundFuelbar";
+	const char* str_foregroundFuelbar = "foregroundFuelbar";
 
 	float xCameraInitial = 0, yCameraInitial = 2, zCameraInitial = 3.5f;
 	float xCamera = 0, yCamera = 0, zCamera = 0;
@@ -82,15 +91,23 @@ protected:
 
 	bool goingUp = false, goingDown = false;
 
-	int platformsNumber = 10;
+	const int platformsNumberPerRow = 10;
 	float platformSpeed = 4.f;
-	Platform* centerPlatforms;
+
+	Platform** platforms;
 	int minPlatformLength = 3;
 	int maxPlatformLength = 6;
 	float spaceBetweenPlatform = 2.f;
 	float platformWidth = 1.f;
 
-	float xCenterPlatforms;
-	float xLeftPlatforms;
-	float xRightPlatforms;
+	int xCenterPlatforms = 0;
+	int xLeftPlatforms = -1;
+	int xRightPlatforms = 1;
+
+	int numberOfPlatformsRows = 3;
+
+	float fuel = 100;
+	float fuelConsumption = 5.f;
+	float fuelLostOnYellow = 10.f;
+	float fuelGainedOnGreen = 20.f;
 };

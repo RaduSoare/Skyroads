@@ -20,18 +20,21 @@ Tema2::~Tema2()
 
 void Tema2::Init()
 {
-
+	// Retine coordonatele initiale ale camerei
 	xCamera = xCameraInitial;
 	yCamera = yCameraInitial;
 	zCamera = zCameraInitial;
 
+	// Seteaza camera
 	camera = new Camera();
 	camera->Set(glm::vec3(xCamera, yCamera, zCamera), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
 
+	// Retine coordonatele initiale ale jucatorului
 	xPlayerInitial = camera->GetTargetPosition()[0];
 	yPlayerInitial = camera->GetTargetPosition()[1];
 	zPlayerInitial = camera->GetTargetPosition()[2];
 
+	// Deseneaza tipurile de platforme
 	drawPlatform('o');
 	drawPlatform('g');
 	drawPlatform('r');
@@ -39,7 +42,12 @@ void Tema2::Init()
 	drawPlatform('p');
 	drawPlatform('b');
 
-	centerPlatforms = allocatePlatforms();
+	//Deseneaza componentele fuelbar-ului
+	drawFuelBar(whiteColor, str_backgroundFuelbar);
+	drawFuelBar(redColor, str_foregroundFuelbar);
+
+
+	platforms = allocatePlatforms();
 	
 
 	{
@@ -70,26 +78,47 @@ const char* Tema2::generateRandomColor() {
 	else if (colorProbability >= 95 && colorProbability <= 100) {
 		return str_rPlatform;
 	}
-	
-	
 }
 
-Platform* Tema2::allocatePlatforms() {
-	Platform* centerPlatforms = new Platform[platformsNumber];
+Platform* Tema2::allocatePlatform(int platformSide) {
 	
-	centerPlatforms[0] = Platform(xCameraInitial - platformWidth / 2, zPlayerInitial - maxPlatformLength * 2, maxPlatformLength * 2, generateRandomColor());
+	Platform* platforms = new Platform[platformsNumberPerRow];
 	
-	float lastX = xCameraInitial, lastZ = zPlayerInitial - maxPlatformLength * 2;
+	// Aloca prima platforma sub player
+	platforms[0] = Platform(xCameraInitial - platformWidth / 2 + platformSide, zPlayerInitial - maxPlatformLength * 2, maxPlatformLength * 2, str_pPlatform);
+	
+	float lastZ = zPlayerInitial - maxPlatformLength * 2;
 
-	for (int i = 1; i < platformsNumber	; i++) {
+	// Aloca restul platformelor la coordonate random
+	for (int i = 1; i < platformsNumberPerRow; i++) {
 		int currentLength = getRandom(minPlatformLength, maxPlatformLength);
-		centerPlatforms[i] = Platform(xCameraInitial + getRandom(-2, 2), lastZ - spaceBetweenPlatform - currentLength, currentLength, generateRandomColor());
-		lastZ = lastZ - spaceBetweenPlatform - centerPlatforms[i].length;
+		platforms[i] = Platform(xCameraInitial - platformWidth / 2 + platformSide, lastZ - spaceBetweenPlatform - currentLength, currentLength, generateRandomColor());
+		lastZ = lastZ - spaceBetweenPlatform - platforms[i].length;
 
 	}
 
-	return centerPlatforms;
+	return platforms;
 
+}
+
+Platform** Tema2::allocatePlatforms() {
+	int side = 0;
+	Platform** platforms = new Platform*[numberOfPlatformsRows];
+	for (int row = 0; row < numberOfPlatformsRows; row++) {
+		switch (row) {
+		case 0:
+			side = -1;
+			break;
+		case 1:
+			side = 0;
+			break;
+		case 2:
+			side = 1;
+			break;
+		}
+		platforms[row] = allocatePlatform(side);
+	}
+	return platforms;
 }
 
 void Tema2::FrameStart()
@@ -105,57 +134,70 @@ void Tema2::FrameStart()
 
 void Tema2::Update(float deltaTimeSeconds)
 {
-	{
+
+	RenderFuelbar(deltaTimeSeconds);
+
+	{	
 		int platformTouchedPerFrame = 0;
-		for (int i = 0; i < platformsNumber; i++) {
-			RenderPlatform(&centerPlatforms[i], deltaTimeSeconds);
-			if (checkPlayerOnPlatform(&centerPlatforms[i]) == true) {
-				platformTouchedPerFrame++;
+
+		for (int row = 0; row < numberOfPlatformsRows; row++) {
+			for (int i = 0; i < platformsNumberPerRow; i++) {
+				RenderPlatform(&platforms[row][i], deltaTimeSeconds, platforms[row]);
+				if (checkPlayerOnPlatform(&platforms[row][i]) == true) {
+					platformTouchedPerFrame++;
+				}
 			}
-			
-		} 
+		}
+		 
 		if(platformTouchedPerFrame < 1) {
-			//cout << "picat" << endl;
+			renderCameraTarget = true;
 			endGame = true;
 		}
 
-		
+		//cout << yPlayer << " " << yPlayerInitial << " " << yCamera << " " << yCameraInitial << endl;
+		//cout << xCamera << " " << yCamera << " " << zCamera << endl;
 		
 	}
+	//cout << fuel << endl;
+	fuel -= deltaTimeSeconds * fuelConsumption;
+	if (fuel <= 0.f) {
+		cout << "Ran out of fuel." << endl;
+		endGame = true;
+	}
 
-	
+	// Updateaza pozitia jucatorului in functie de pozitia camerei
+	xPlayer = camera->GetTargetPosition()[0];
+	yPlayer = camera->GetTargetPosition()[1];
+	zPlayer = camera->GetTargetPosition()[2];
+
+	// Cazul Third Person
 	if (renderCameraTarget)
 	{
-		xPlayer = camera->GetTargetPosition()[0];
-		yPlayer = camera->GetTargetPosition()[1];
-		zPlayer = camera->GetTargetPosition()[2];
-
 		if (endGame == false) {
 			modelMatrix = glm::mat4(1);
+			
+			// Deplasarea jucatorului
 			modelMatrix *= Transform3D::Translate(xPlayer, yPlayer, zPlayer);
 			
-			// animatie rotire
+			// Animatie rotire
 			angularSpeedPlayer += deltaTimeSeconds * 2;
 			modelMatrix *= Transform3D::RotateOX(-angularSpeedPlayer);
 
 			modelMatrix *= Transform3D::Scale(0.5f, 0.5f, 0.5f);
-			
 		}
 		// Animatie terminare joc
 		else {
 			modelMatrix = Transform3D::Translate(xPlayer, yPlayer, zPlayer);
+			// Animatie cadere in gravitatie
 			endGameGravity += deltaTimeSeconds * 5;
 			modelMatrix *= Transform3D::Translate(0, -endGameGravity, 0);
 			modelMatrix *= Transform3D::Scale(0.5f, 0.5f, 0.5f);
-			cout << endGameGravity << endl;
+
 			if (endGameGravity >= 3.f) {
 				exit(1);
 			}
 		}
 		
-		
-		
-
 		RenderMesh(meshes["sphere"], shaders["VertexNormal"], modelMatrix);
 	}
 
@@ -163,41 +205,42 @@ void Tema2::Update(float deltaTimeSeconds)
 	
 }
 
-void Tema2::RenderPlatform(Platform* platform, float deltaTimeSeconds) {
+void Tema2::RenderFuelbar(float deltaTimeSeconds) {
+	glm::mat3 modelMatrixBgnd = Transform2D::Translate(xCameraInitial - 2.2f, yCamera);
+	glm::mat3 modelMatrixFgnd = Transform2D::Translate(xCameraInitial - 2.2f, yCamera);
+	modelMatrixFgnd *= Transform2D::Scale(fuel / 100, 1);
+	RenderMesh2D(meshes[str_foregroundFuelbar], shaders["VertexColor"], modelMatrixFgnd);
+	RenderMesh2D(meshes[str_backgroundFuelbar], shaders["VertexColor"], modelMatrixBgnd);
 	
+}
 
+void Tema2::RenderPlatform(Platform* platform, float deltaTimeSeconds, Platform* platformRow) {
 	
-	
-	if (endGame == false) {
 		modelMatrix = Transform3D::Translate(platform->xCoord, 0.75f, platform->zCoord);
-		platform->distance += deltaTimeSeconds * platformSpeed;
+		if (endGame == false) {
+			platform->distance += deltaTimeSeconds * platformSpeed;
+		}
+		
 		modelMatrix *= Transform3D::Translate(0, 0, platform->distance);
 		modelMatrix *= Transform3D::Scale(1, 1, platform->length);
-	}
-	else {
-		modelMatrix = Transform3D::Translate(platform->xCoord, 0.75f, platform->zCoord);
-		modelMatrix *= Transform3D::Translate(0, 0, platform->distance);
-		modelMatrix *= Transform3D::Scale(1, 1, platform->length);
-	}
-	
-	
 
 	/*
 	 Verificare daca platforma a ajuns in spatele camerei
 	*/
-	if (platform->isInGame == true && platform->zCoord + platform->distance >=zCamera + platform->length) {
-		// third person case
+	if (platform->isInGame == true && platform->zCoord + platform->distance >= zCamera + platform->length) {
 		
 		platform->isInGame = false;
 		int lastPlatform = 0;
-		for (int i = 0; i < platformsNumber; i++) {
-			if (centerPlatforms[i].isInGame == true &&  centerPlatforms[i].zCoord  + centerPlatforms[i].distance < lastPlatform) {
-				lastPlatform = centerPlatforms[i].zCoord + centerPlatforms[i].distance;
+		for (int i = 0; i < platformsNumberPerRow; i++) {
+			if (platformRow[i].isInGame == true && platformRow[i].zCoord  + platformRow[i].distance < lastPlatform) {
+				// calculeaza coordonatele cele mai indepartate platforme
+				// pentru a genera urmatoarea platforma, dupa aceasta
+				lastPlatform = platformRow[i].zCoord + platformRow[i].distance;
 			}
 		}
-		
+		// Updatare proprietati platforma noua
 		platform->length = getRandom(minPlatformLength, maxPlatformLength);
-		platform->xCoord = xCameraInitial + getRandom(-2, 2);
+		//platform->xCoord = xCameraInitial + getRandom(-2, 2);
 		platform->zCoord = lastPlatform - platform->length - spaceBetweenPlatform;
 		platform->color = generateRandomColor();
 		platform->isInGame = true;
@@ -213,27 +256,32 @@ void Tema2::RenderPlatform(Platform* platform, float deltaTimeSeconds) {
 bool Tema2::checkPlayerOnPlatform(Platform* platform) {
 	
 	
-	// caz first person
-	/*renderCameraTarget == false && (xCamera >= platform->xCoord && xCamera <= platform->xCoord + platformWidth
-		&& zCamera >= platform->zCoord + platform->distance && zCamera <= platform->zCoord + platform->distance + platform->length
-		&& yCamera <= yCameraInitial)
-		// caz third person
-		||*/
-	if ((renderCameraTarget == true 
-		&& camera->GetTargetPosition()[0] >= platform->xCoord && camera->GetTargetPosition()[0] <= platform->xCoord + platformWidth
+	if ((camera->GetTargetPosition()[0] >= platform->xCoord && camera->GetTargetPosition()[0] <= platform->xCoord + platformWidth
 		&& camera->GetTargetPosition()[2] >= platform->zCoord + platform->distance && camera->GetTargetPosition()[2] <= platform->zCoord + platform->distance + platform->length
-		&& yPlayer <= yPlayerInitial) ) {
+		&& yPlayer <= yPlayerInitial)) {
+		if (platform->color == str_gPlatform) {
+			fuel += fuelGainedOnGreen;
+			if (fuel >= 100.f) {
+				fuel = 100;
+			}
+		}
+		else if (platform->color == str_yPlatform) {
+			fuel -= fuelLostOnYellow;
+		}
+		else if (platform->color == str_rPlatform) {
+			endGame = true;
+		}
+		// Modifica culoarea platformei la coliziune
 		platform->color = str_pPlatform;
 		return true;
 		
 	}
+	// Se considera ca jucatorul este in afara platformei doar cand se afla la nivelul acesteia
 	if (goingUp == false && goingDown == false) {
 		return false;
 	}
+
 	return true;
-	
-	
-	
 }
 
 
@@ -314,8 +362,7 @@ void Tema2::OnInputUpdate(float deltaTime, int mods)
 	}
 	else if (goingDown) {
 		
-		if ((renderCameraTarget == true &&  yPlayer > yPlayerInitial) 
-			|| (renderCameraTarget == false && yCamera > yCameraInitial)) {
+		if (( yPlayer > yPlayerInitial)) {
 			camera->TranslateUpword(- deltaTime * jumpSpeed);
 		}
 		else {
@@ -386,6 +433,22 @@ void Tema2::OnMouseScroll(int mouseX, int mouseY, int offsetX, int offsetY)
 
 void Tema2::OnWindowResize(int width, int height)
 {
+}
+
+void Tema2::drawFuelBar(glm::vec3 color, const char* fuelbarComponent) {
+	 
+	vector<VertexFormat> verticesFuelbar = {
+		VertexFormat(glm::vec3(0, 0, 0), color),
+		VertexFormat(glm::vec3(1.f, 0, 0),  color),
+		VertexFormat(glm::vec3(1.f, 0.2f, 0),  color),
+		VertexFormat(glm::vec3(0, 0.2f, 0),  color)
+	};
+	vector<unsigned short> indicesFuelbar = {
+		0, 1, 3,
+		2, 3, 1
+	};
+	Mesh *fuelbar = CreateMesh(fuelbarComponent , verticesFuelbar, indicesFuelbar);
+	fuelbar->SetDrawMode(GL_TRIANGLES);
 }
 
 void Tema2::drawPlatform(char platformType) {

@@ -27,6 +27,8 @@ private:
 
 	void RenderMesh(Mesh * mesh, Shader * shader, const glm::mat4 & modelMatrix) override;
 
+	void RenderSimpleMesh(Mesh *mesh, Shader *shader, const glm::mat4 & modelMatrix);
+
 	void OnInputUpdate(float deltaTime, int mods) override;
 	void OnKeyPress(int key, int mods) override;
 	void OnKeyRelease(int key, int mods) override;
@@ -61,6 +63,7 @@ protected:
 
 	float cameraSpeed = 2.0f;
 	float jumpSpeed = 1.5f;
+	float airTime = 0;
 
 	glm::vec3 redColor = glm::vec3(1, 0, 0);
 	glm::vec3 orangeColor = glm::vec3(1, 0.65f, 0);
@@ -104,10 +107,13 @@ protected:
 	int xLeftPlatforms = -1;
 	int xRightPlatforms = 1;
 
-	int numberOfPlatformsRows = 3;
+	int numberOfPlatformsRows = 5;
 
 	float fuel = 100;
 	float fuelConsumption = 5.f;
 	float fuelLostOnYellow = 10.f;
 	float fuelGainedOnGreen = 20.f;
+
+	float orangeEffectActive = false;
+	float orangeEffectDuration = 30.f;
 };

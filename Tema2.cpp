@@ -1,9 +1,11 @@
 #include"Tema2.h"
 #include"Platform.h"
+#include "LabCamera.h"
 
 #include <vector>
 #include <string>
 #include <iostream>
+#include <math.h>
 
 #include <Core/Engine.h>
 
@@ -46,6 +48,7 @@ void Tema2::Init()
 	drawFuelBar(whiteColor, str_backgroundFuelbar);
 	drawFuelBar(redColor, str_foregroundFuelbar);
 
+	
 
 	platforms = allocatePlatforms();
 	
@@ -57,6 +60,14 @@ void Tema2::Init()
 	}
 
 	projectionMatrix = glm::perspective(RADIANS(60), window->props.aspectRatio, 0.01f, 200.0f);
+
+	{
+		Shader *shader = new Shader("Skyroad");
+		shader->AddShader("Source/Laboratoare/Tema2/Shaders/VertexShader.glsl", GL_VERTEX_SHADER);
+		shader->AddShader("Source/Laboratoare/Tema2/Shaders/FragmentShader.glsl", GL_FRAGMENT_SHADER);
+		shader->CreateAndLink();
+		shaders[shader->GetName()] = shader;
+	}
 
 }
 
@@ -78,6 +89,10 @@ const char* Tema2::generateRandomColor() {
 	else if (colorProbability >= 95 && colorProbability <= 100) {
 		return str_rPlatform;
 	}
+	else {
+		return str_bPlatform;
+	}
+	
 }
 
 Platform* Tema2::allocatePlatform(int platformSide) {
@@ -107,13 +122,19 @@ Platform** Tema2::allocatePlatforms() {
 	for (int row = 0; row < numberOfPlatformsRows; row++) {
 		switch (row) {
 		case 0:
-			side = -1;
+			side = -2;
 			break;
 		case 1:
-			side = 0;
+			side = -1;
 			break;
 		case 2:
+			side = 0;
+			break;
+		case 3:
 			side = 1;
+			break;
+		case 4:
+			side = 2;
 			break;
 		}
 		platforms[row] = allocatePlatform(side);
@@ -134,7 +155,7 @@ void Tema2::FrameStart()
 
 void Tema2::Update(float deltaTimeSeconds)
 {
-
+	// Randeaza bara de combustibil
 	RenderFuelbar(deltaTimeSeconds);
 
 	{	
@@ -146,16 +167,29 @@ void Tema2::Update(float deltaTimeSeconds)
 				if (checkPlayerOnPlatform(&platforms[row][i]) == true) {
 					platformTouchedPerFrame++;
 				}
+
 			}
 		}
-		 
+
+		// Consuma efectul platformei portocalii
+		if (orangeEffectActive == true) {
+			orangeEffectDuration -= deltaTimeSeconds * 10;
+			if (orangeEffectDuration <= 0) {
+				renderCameraTarget = true;
+				orangeEffectActive = false;
+				orangeEffectDuration = 50.f;
+				platformSpeed /= 2;
+			}
+		}
+		
+		// Verifica daca jucatorul nu a atins nicio platforma intr-un frame
 		if(platformTouchedPerFrame < 1) {
+			//cout << "You fell off the platform" << endl;
 			renderCameraTarget = true;
 			endGame = true;
 		}
 
-		//cout << yPlayer << " " << yPlayerInitial << " " << yCamera << " " << yCameraInitial << endl;
-		//cout << xCamera << " " << yCamera << " " << zCamera << endl;
+		
 		
 	}
 	//cout << fuel << endl;
@@ -169,6 +203,10 @@ void Tema2::Update(float deltaTimeSeconds)
 	xPlayer = camera->GetTargetPosition()[0];
 	yPlayer = camera->GetTargetPosition()[1];
 	zPlayer = camera->GetTargetPosition()[2];
+
+	//cout << xCamera << " " << yCamera << " " << zCamera << endl;
+	//cout << xPlayer << " " << yPlayer << " " << zPlayer << endl;
+	
 
 	// Cazul Third Person
 	if (renderCameraTarget)
@@ -197,8 +235,14 @@ void Tema2::Update(float deltaTimeSeconds)
 				exit(1);
 			}
 		}
+		if (orangeEffectActive == true) {
+			RenderSimpleMesh(meshes["sphere"], shaders["Skyroad"], modelMatrix);
+		}
+		else {
+			RenderMesh(meshes["sphere"], shaders["VertexNormal"], modelMatrix);
+		}
+		//
 		
-		RenderMesh(meshes["sphere"], shaders["VertexNormal"], modelMatrix);
 	}
 
 	
@@ -230,7 +274,7 @@ void Tema2::RenderPlatform(Platform* platform, float deltaTimeSeconds, Platform*
 	if (platform->isInGame == true && platform->zCoord + platform->distance >= zCamera + platform->length) {
 		
 		platform->isInGame = false;
-		int lastPlatform = 0;
+		float lastPlatform = 0;
 		for (int i = 0; i < platformsNumberPerRow; i++) {
 			if (platformRow[i].isInGame == true && platformRow[i].zCoord  + platformRow[i].distance < lastPlatform) {
 				// calculeaza coordonatele cele mai indepartate platforme
@@ -256,9 +300,12 @@ void Tema2::RenderPlatform(Platform* platform, float deltaTimeSeconds, Platform*
 bool Tema2::checkPlayerOnPlatform(Platform* platform) {
 	
 	
-	if ((camera->GetTargetPosition()[0] >= platform->xCoord && camera->GetTargetPosition()[0] <= platform->xCoord + platformWidth
+	if ((renderCameraTarget == true && camera->GetTargetPosition()[0] >= platform->xCoord && camera->GetTargetPosition()[0] <= platform->xCoord + platformWidth
 		&& camera->GetTargetPosition()[2] >= platform->zCoord + platform->distance && camera->GetTargetPosition()[2] <= platform->zCoord + platform->distance + platform->length
-		&& yPlayer <= yPlayerInitial)) {
+		&& yPlayer <= yPlayerInitial) || 
+		(renderCameraTarget == false && xCamera >= platform->xCoord && xCamera <= platform->xCoord + platformWidth
+			&& zCamera >= platform->zCoord + platform->distance && zCamera <= platform->zCoord + platform->distance + platform->length
+			&& yPlayer <= yPlayerInitial)) {
 		if (platform->color == str_gPlatform) {
 			fuel += fuelGainedOnGreen;
 			if (fuel >= 100.f) {
@@ -270,6 +317,12 @@ bool Tema2::checkPlayerOnPlatform(Platform* platform) {
 		}
 		else if (platform->color == str_rPlatform) {
 			endGame = true;
+			renderCameraTarget = true;
+		}
+		else if (orangeEffectActive == false && platform->color == str_oPlatform) {
+			orangeEffectActive = true;
+			platformSpeed *= 2;
+			
 		}
 		// Modifica culoarea platformei la coliziune
 		platform->color = str_pPlatform;
@@ -306,16 +359,22 @@ void Tema2::RenderMesh(Mesh * mesh, Shader * shader, const glm::mat4 & modelMatr
 }
 
 
-float airTime = 0;
+
 void Tema2::OnInputUpdate(float deltaTime, int mods)
 {
 	
 
 		// TODO : translate the camera forward
-	if (window->KeyHold(GLFW_KEY_W)) {
+	if (window->KeyHold(GLFW_KEY_W) && orangeEffectActive == false) {
 		
 		camera->MoveForward(deltaTime * cameraSpeed);
 		zCamera -= deltaTime * cameraSpeed;
+	}
+
+	if (window->KeyHold(GLFW_KEY_S) && orangeEffectActive == false) {
+		// TODO : translate the camera backwards
+		camera->MoveForward(-deltaTime * cameraSpeed);
+		zCamera += deltaTime * cameraSpeed;
 	}
 	
 	
@@ -326,11 +385,7 @@ void Tema2::OnInputUpdate(float deltaTime, int mods)
 		xCamera -= deltaTime * cameraSpeed;
 	}
 
-	if (window->KeyHold(GLFW_KEY_S)) {
-		// TODO : translate the camera backwards
-		camera->MoveForward(-deltaTime * cameraSpeed);
-		zCamera += deltaTime * cameraSpeed;
-	}
+	
 
 	if (window->KeyHold(GLFW_KEY_D)) {
 		// TODO : translate the camera to the right
@@ -380,9 +435,11 @@ void Tema2::OnKeyPress(int key, int mods)
 	if (key == GLFW_KEY_SPACE && goingDown == false && goingUp == false) {
 		goingUp = true;
 	}
-	if (key == GLFW_KEY_T)
+	if (key == GLFW_KEY_C)
 	{
 		renderCameraTarget = !renderCameraTarget;
+		
+	
 	}
 }
 
@@ -399,7 +456,7 @@ void Tema2::OnMouseMove(int mouseX, int mouseY, int deltaX, int deltaY)
 		float sensivityOY = 0.001f;
 
 		if (window->GetSpecialKeyState() == 0) {
-			renderCameraTarget = false;
+			//renderCameraTarget = false;
 			// TODO : rotate the camera in First-person mode around OX and OY using deltaX and deltaY
 			// use the sensitivity variables for setting up the rotation speed
 			camera->RotateFirstPerson_OX(-sensivityOX * deltaY);
@@ -407,7 +464,7 @@ void Tema2::OnMouseMove(int mouseX, int mouseY, int deltaX, int deltaY)
 		}
 
 		if (window->GetSpecialKeyState() && GLFW_MOD_CONTROL) {
-			renderCameraTarget = true;
+			//renderCameraTarget = true;
 			// TODO : rotate the camera in Third-person mode around OX and OY using deltaX and deltaY
 			// use the sensitivity variables for setting up the rotation spee
 			camera->RotateThirdPerson_OX(-sensivityOX * deltaY);
@@ -522,6 +579,46 @@ void Tema2::drawPlatform(char platformType) {
 
 }
 
+void Tema2::RenderSimpleMesh(Mesh *mesh, Shader *shader, const glm::mat4 & modelMatrix)
+{
+	if (!mesh || !shader || !shader->GetProgramID())
+		return;
+
+	// render an object using the specified shader and the specified position
+	glUseProgram(shader->program);
+
+	// TODO : get shader location for uniform mat4 "Model"
+	int locationModel = glGetUniformLocation(shader->program, "Model");
+
+	// TODO : set shader uniform "Model" to modelMatrix
+	glUniformMatrix4fv(locationModel, 1, GL_FALSE, glm::value_ptr(modelMatrix));
+
+	// TODO : get shader location for uniform mat4 "View"
+
+	int locationView = glGetUniformLocation(shader->program, "View");
+	// TODO : set shader uniform "View" to viewMatrix
+	glm::mat4 viewMatrix = camera->GetViewMatrix();
+	glUniformMatrix4fv(locationView, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+
+	// TODO : get shader location for uniform mat4 "Projection"
+	int locationProjection = glGetUniformLocation(shader->program, "Projection");
+	// TODO : set shader uniform "Projection" to projectionMatrix
+	//glm::mat4 projectionMatrix = projectionMatrix;
+	glUniformMatrix4fv(locationProjection, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+
+	/*
+		BONUS
+	*/
+	float time = fmod(Engine::GetElapsedTime(), 1.f);
+	cout << time << endl;
+	int locationTime = glGetUniformLocation(shader->program, "Time");
+	glUniform1f(locationTime, time);
+
+	// Draw the object
+	glBindVertexArray(mesh->GetBuffers()->VAO);
+	glDrawElements(mesh->GetDrawMode(), static_cast<int>(mesh->indices.size()), GL_UNSIGNED_SHORT, 0);
+}
+
 Mesh* Tema2::CreateMesh(const char *name, const std::vector<VertexFormat>& vertices, const std::vector<unsigned short>& indices)
 {
 	unsigned int VAO = 0;
@@ -571,6 +668,8 @@ Mesh* Tema2::CreateMesh(const char *name, const std::vector<VertexFormat>& verti
 	// Mesh information is saved into a Mesh object
 	meshes[name] = new Mesh(name);
 	meshes[name]->InitFromBuffer(VAO, static_cast<unsigned short>(indices.size()));
+	meshes[name]->vertices = vertices;
+	meshes[name]->indices = indices;
 	return meshes[name];
 }
 

@@ -6,28 +6,25 @@
 #include "Transform3D.h"
 #include "Transform2D.h"
 #include "Platform.h"
+#include "Drawer.h"
 
 
-class Tema2 : public SimpleScene 
+
+
+class Skyroads : public SimpleScene 
 {
 public:
-	Tema2();
-	~Tema2();
+	Skyroads();
+	~Skyroads();
 
 	void Init() override;
 
 	
 
 private:
-	Mesh* CreateMesh(const char *name, const std::vector<VertexFormat>& vertices, const std::vector<unsigned short>& indices);
-
 	void FrameStart() override;
 	void Update(float deltaTimeSeconds) override;
 	void FrameEnd() override;
-
-	void RenderMesh(Mesh * mesh, Shader * shader, const glm::mat4 & modelMatrix) override;
-
-	void RenderSimpleMesh(Mesh *mesh, Shader *shader, const glm::mat4 & modelMatrix);
 
 	void OnInputUpdate(float deltaTime, int mods) override;
 	void OnKeyPress(int key, int mods) override;
@@ -38,33 +35,71 @@ private:
 	void OnMouseScroll(int mouseX, int mouseY, int offsetX, int offsetY) override;
 	void OnWindowResize(int width, int height) override;
 
+	void RenderMesh(Mesh * mesh, Shader * shader, const glm::mat4 & modelMatrix) override;
+	void RenderSimpleMesh(Mesh *mesh, Shader *shader, const glm::mat4 & modelMatrix);
+	void RenderPlatform(Platform* platform, float deltaTimeSeconds, Platform* platformRow);
+	void RenderFuelbar(float deltaTimeSeconds);
 
-	void drawPlatform(char platformType);
-	void Tema2::drawFuelBar(glm::vec3 color, const char* fuelbarComponent);
+	Platform* allocatePlatform(int platformSide);
+	Platform** allocatePlatforms();
+	
+	bool checkPlayerOnPlatform(Platform* platform);
 
 	int getRandom(int min, int max);
 	const char* generateRandomColor();
-	Platform* allocatePlatform(int platformSide);
-	Platform** allocatePlatforms();
-	void RenderPlatform(Platform* platform, float deltaTimeSeconds, Platform* platformRow);
-	void RenderFuelbar(float deltaTimeSeconds);
-	bool checkPlayerOnPlatform(Platform* platform);
 
 	
 	
 
 protected:
+	// Game properties
 	Camera *camera;
+	Drawer drawer;
 	glm::mat4 projectionMatrix;
-	bool renderCameraTarget = true;
 	glm::mat4 modelMatrix;
+	bool renderCameraTarget = true;
 	bool endGame = false;
+	bool goingUp = false;
+	bool goingDown = false;
+	
+	// Animations speed properties
 	float endGameGravity = 0;
-
 	float cameraSpeed = 2.0f;
 	float jumpSpeed = 1.5f;
 	float airTime = 0;
+	float angularSpeedPlayer = 0;
 
+	// Platforms properties
+	Platform** platforms;
+	int minPlatformLength = 3;
+	int maxPlatformLength = 6;
+	float spaceBetweenPlatform = 2.f;
+	float platformWidth = 1.f;
+	float platformSpeed = 4.f;
+	int numberOfPlatformsRows = 5;
+	const int platformsNumberPerRow = 10;
+
+	// Coordinates
+	float xCameraInitial = 0, yCameraInitial = 2, zCameraInitial = 3.5f;
+	float xCamera = 0, yCamera = 0, zCamera = 0;
+
+	float xPlayerInitial, yPlayerInitial, zPlayerInitial;
+	float xPlayer, yPlayer, zPlayer;
+
+	// PowerUps - Fuel
+	float fuel = 100;
+	float fuelConsumption = 5.f;
+	float fuelLostOnYellow = 10.f;
+	float fuelGainedOnGreen = 20.f;
+
+	float orangeEffectActive = false;
+	float orangeEffectDuration = 30.f;
+
+	const char* str_backgroundFuelbar = "backgroundFuelbar";
+	const char* str_foregroundFuelbar = "foregroundFuelbar";
+	
+	
+	// Colors
 	glm::vec3 redColor = glm::vec3(1, 0, 0);
 	glm::vec3 orangeColor = glm::vec3(1, 0.65f, 0);
 	glm::vec3 yellowColor = glm::vec3(1, 1, 0);
@@ -80,40 +115,17 @@ protected:
 	const char* str_pPlatform = "purplePlatform";
 	const char* str_bPlatform = "bluePlatform";
 
-	const char* str_backgroundFuelbar = "backgroundFuelbar";
-	const char* str_foregroundFuelbar = "foregroundFuelbar";
 
-	float xCameraInitial = 0, yCameraInitial = 2, zCameraInitial = 3.5f;
-	float xCamera = 0, yCamera = 0, zCamera = 0;
 
-	float xPlayerInitial, yPlayerInitial, zPlayerInitial;
-	float xPlayer, yPlayer, zPlayer;
+	
 	
 
-	float angularSpeedPlayer = 0;
+	
 
-	bool goingUp = false, goingDown = false;
 
-	const int platformsNumberPerRow = 10;
-	float platformSpeed = 4.f;
 
-	Platform** platforms;
-	int minPlatformLength = 3;
-	int maxPlatformLength = 6;
-	float spaceBetweenPlatform = 2.f;
-	float platformWidth = 1.f;
+	
 
-	int xCenterPlatforms = 0;
-	int xLeftPlatforms = -1;
-	int xRightPlatforms = 1;
 
-	int numberOfPlatformsRows = 5;
-
-	float fuel = 100;
-	float fuelConsumption = 5.f;
-	float fuelLostOnYellow = 10.f;
-	float fuelGainedOnGreen = 20.f;
-
-	float orangeEffectActive = false;
-	float orangeEffectDuration = 30.f;
+	
 };
